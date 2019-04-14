@@ -1,8 +1,8 @@
-import interfaces.HashMapOAInt;
+import interfaces.HashMapOA;
 
 import java.util.concurrent.locks.ReentrantLock;
 
-public class HopscotchHashmap<V> implements HashMapOAInt<V> {
+public class HopscotchHashmap<V> implements HashMapOA<V> {
 
     static class HashEntry<V> {
         private volatile int key;
@@ -15,7 +15,7 @@ public class HopscotchHashmap<V> implements HashMapOAInt<V> {
             this.key = key;
             this.value = value;
             this.lock = new ReentrantLock();
-            this.neiRecBmp=0;
+            this.neiRecBmp = 0;
         }
 
         public V getValue() {
@@ -30,20 +30,59 @@ public class HopscotchHashmap<V> implements HashMapOAInt<V> {
             return key;
         }
 
+        public ReentrantLock getLock() {
+            return this.lock;
+        }
+
         public void setKey(int key) {
             this.key = key;
         }
 
-        public void setBitmapBit(int index){
-            this.neiRecBmp |= (1<<index);
+        public void setBitmapBit(int index) {
+            this.neiRecBmp |= (1 << index);
         }
 
-        public void unsetBitmapBit(int index){
-            this.neiRecBmp &= ~(1<<index);
+        public void unsetBitmapBit(int index) {
+            this.neiRecBmp &= ~(1 << index);
         }
 
-        public long getNeiRecBmp(){
+        public long getNeiRecBmp() {
             return this.neiRecBmp;
+        }
+
+        public static void setDeleted(HashEntry entry){
+            entry.setKey(DELETED);
+            entry.setValue(null);
+        }
+
+        public static boolean isFree(HashEntry entry) {
+            return (entry == null) || HashEntry.isDeleted(entry);
+        }
+
+        private static boolean isDeleted(HashEntry entry) {
+            return (entry != null) && (entry.getKey() == DELETED) && (entry.getValue() == null);
+        }
+    }
+
+    private class FindElemRes {
+        private HashEntry he;
+        private int index;
+
+        FindElemRes(HashEntry he) {
+            this.he = he;
+        }
+
+        FindElemRes(HashEntry he, int index) {
+            this.he = he;
+            this.index = index;
+        }
+
+        public int getIndex() {
+            return index;
+        }
+
+        public HashEntry getHe() {
+            return he;
         }
     }
 
@@ -51,7 +90,7 @@ public class HopscotchHashmap<V> implements HashMapOAInt<V> {
 
     private static float MAX_LOAD_FACTOR = 0.75f;
 
-    private static int DELETED = -1;
+    private static int DELETED = Integer.MIN_VALUE + 1;
 
     private int TABLE_SIZE = 128;
 
@@ -59,16 +98,11 @@ public class HopscotchHashmap<V> implements HashMapOAInt<V> {
 
     HopscotchHashmap.HashEntry[] table;
 
-    HopscotchHashmap(){
-        table = new HopscotchHashmap.HashEntry[TABLE_SIZE];
+    HopscotchHashmap() {
+        table = new HopscotchHashmap.HashEntry[TABLE_SIZE + NEIGHBOURHOOD_SIZE];
         //todo refactor memcopy ? stream
-        for (int i = 0; i < TABLE_SIZE; i++)
+        for (int i = 0; i < TABLE_SIZE + NEIGHBOURHOOD_SIZE; i++)
             table[i] = null;
-    }
-
-    private boolean isFree(HashEntry entry) {
-        //todo not sure if it is correct in multithreaded_environment
-        return (entry == null) || (entry.getKey() != DELETED);
     }
 
     //    private boolean isNull(HashEntry entry) {
@@ -78,84 +112,98 @@ public class HopscotchHashmap<V> implements HashMapOAInt<V> {
 
     /**
      * hash fuction
+     *
      * @param key
      */
-    private int h(int key){
-        return key % TABLE_SIZE;
-    }
-
-    private boolean tryInsertSet(HashEntry entry, int key, V value) {
-        if (isFree(entry)) {
-            entry = new HashEntry(key, value);
-            return true;//not equals cos primitive
-        } else if (entry.getKey() == key) {
-            //return previous value if necessary
-            entry.setValue(value);
-            return true;
-        }
-        return false;
+    private int h(int key) {
+        return key & (TABLE_SIZE - 1);
+        //return key % TABLE_SIZE;
+        //return (key == null) ? 0 : (h = key.hashCode()) ^ (h >>> 16);
+        //((key) & (MAX_SEGMENTS-1));
     }
 
     @Override
-    public boolean add(int key, V value) {
-        int initialHash = h(key);
-        int hash = initialHash;
-        int i = 0;
-        //try {
-        //HashEntry ref=table[hash];
-        boolean haveSet = false;
-        do {
-            haveSet = tryInsertSet(table[hash], key, value);
-            ++i;
+    public V put(int key, V value) {
+        if ((key == DELETED) && (value ==null)) {
+            throw new IllegalArgumentException("Key cant be "+DELETED+" and value cant be NULL");
         }
-        while (!haveSet && (i < TABLE_SIZE));//or do while(...hash!=initialHash)
-
-//        } catch (NullPointerException e) {
-//            table[h] = new Par(x, y);
-//            return null;
-//        }
+        int bucket_index = h(key);
+        HashEntry bucket = table[bucket_index];
+        int i, mask = 1;
+        long bitmap = bucket.getNeiRecBmp();
+        HashEntry<V> entry = null;
+        for (i = 0; i < NEIGHBOURHOOD_SIZE; ++i, mask <<= 1) {
+            entry = table[bucket_index + i];
+            if (entry == null) {
+                table[bucket_index + i] = new HashEntry(key, value);
+                bucket.setBitmapBit(i);
+                return null;//not equals cos primitive
+            } else if (HashEntry.isDeleted(entry)) {
+                //return previous value if necessary
+                entry.setKey(key);
+                entry.setValue(value);
+                bucket.setBitmapBit(i);
+                return null;
+            } else if (entry.getKey() == key) {
+                //return previous value if necessary
+                V prevValue = entry.getValue();
+                entry.setValue(value);
+                return prevValue;
+            }
+        }
     }
 
 
     @Override
     public V remove(int key) {
         int bucket_index = h(key);
-        HashEntry<V> bucket = table[bucket_index];
-        bucket.lock.lock();//
-        long bitmap = bucket.getNeiRecBmp();
-        long mask = 1;
-        for (int i = 0; i < NEIGHBOURHOOD_SIZE; ++i, mask <<= 1) {
-            if((mask & bitmap) >= 1) {
-                HashEntry<V> check_bucket = table[bucket_index+i];
-                if(key == check_bucket.getKey()) {
-                    V rc = check_bucket.getValue();
-                    check_bucket.setValue(null);
-                    check_bucket.setKey(-1);
-                    bucket.unsetBitmapBit(i);
-                    bucket.lock.unlock();//
-                    return rc;
-                }
-            }
+        HashEntry<V> found_bucket, bucket = table[bucket_index];
+        //bucketnull
+        if (bucket == null) return null;
+        bucket.getLock().lock();//
+        FindElemRes foundRes = findElem(bucket, bucket_index, key);
+        found_bucket = foundRes.getHe();
+        if (found_bucket != null) {
+            V value = found_bucket.getValue();
+            HashEntry.setDeleted(found_bucket);
+            bucket.unsetBitmapBit(foundRes.getIndex());
+            ACTUAL_SIZE--;
+            bucket.getLock().unlock();//
+            return value;
+        } else {
+            bucket.getLock().unlock();//
+            return null;
         }
-        bucket.lock.unlock();//
-        return null;
     }
 
     @Override
     public boolean containsKey(int key) {
         int bucket_index = h(key);
         HashEntry bucket = table[bucket_index];
+        //bucketnull
+        if (bucket == null) return false;
+        bucket = findElem(bucket, bucket_index, key).getHe();
+        return (bucket != null);
+    }
+
+    private FindElemRes findElem(HashEntry bucket, int init_bucket_index, int key) {
         long bitmap = bucket.getNeiRecBmp();
         long mask = 1;
-        for (int i = 0; i < NEIGHBOURHOOD_SIZE; ++i, mask <<= 1) {
-            if((mask & bitmap) >= 1) {
-                HashEntry check_bucket = table[bucket_index+i];
-                if(key == check_bucket.getKey()) {
-                    return true;
+        int i;
+        HashEntry check_bucket = null;
+        for (i = 0; i < NEIGHBOURHOOD_SIZE; ++i, mask <<= 1) {
+            if ((mask & bitmap) >= 1) {
+                check_bucket = table[init_bucket_index + i];
+                if (key == check_bucket.getKey()) {
+                    break;
                 }
             }
         }
-        return false;
+        if (i >= NEIGHBOURHOOD_SIZE) {
+            return new FindElemRes(null, i);
+        } else {
+            return new FindElemRes(check_bucket, i);
+        }
     }
 
     @Override
@@ -167,16 +215,13 @@ public class HopscotchHashmap<V> implements HashMapOAInt<V> {
     public V get(int key) {
         int bucket_index = h(key);
         HashEntry<V> bucket = table[bucket_index];
-        long bitmap = bucket.getNeiRecBmp();
-        long mask = 1;
-        for (int i = 0; i < NEIGHBOURHOOD_SIZE; ++i, mask <<= 1) {
-            if((mask & bitmap) >= 1) {
-                HashEntry<V> check_bucket = table[bucket_index+i];
-                if(key == check_bucket.getKey()) {
-                    return check_bucket.getValue();
-                }
-            }
+        //bucketnull
+        if (bucket == null) return null;
+        bucket = findElem(bucket, bucket_index, key).getHe();
+        if (bucket != null) {
+            return bucket.getValue();
+        } else {
+            return null;
         }
-        return null;
     }
 }

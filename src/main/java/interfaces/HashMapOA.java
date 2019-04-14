@@ -1,9 +1,9 @@
 package interfaces;
 
-public interface HashMapOAInt<V> {
+public interface HashMapOA<V> {
     V remove(int key);
     boolean containsKey(int key);
-    boolean add(int key,V value);
+    V put(int key,V value);
     int size();
     V get(int key);
 }
