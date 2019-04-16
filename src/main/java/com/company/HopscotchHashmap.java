@@ -169,17 +169,12 @@ public class HopscotchHashmap<V> implements HashMapOA<V> {
     public String toString() {
         StringBuilder sb = new StringBuilder("Size :" + ACTUAL_SIZE + "\n");
         for (int i = 0; i < TABLE_SIZE; i++) {
-            if (/*!HashEntry.isFree(table[i])*/table[i] != null) {
+            if (table[i] != null) {
                 sb.append("Index[").append(i).append("] -- ").append(table[i]).append("\n");
             }
         }
         return sb.toString();
     }
-
-    //    private boolean isNull(HashEntry entry) {
-//        //todo not sure if it is correct in multithreaded_environment
-//        return entry == null;
-//    }
 
     /**
      * hash fuction
@@ -188,17 +183,18 @@ public class HopscotchHashmap<V> implements HashMapOA<V> {
      */
     private int h(int key) {
         return key & (TABLE_SIZE - 1);
-        //return key % TABLE_SIZE;
-        //return (key == null) ? 0 : (h = key.hashCode()) ^ (h >>> 16);
-        //((key) & (MAX_SEGMENTS-1));
     }
 
+    /**
+     * Функция перестройки внутреннего массива
+     * @throws HashmapOversizeException
+     */
     private void resize() throws HashmapOversizeException {
         tableLock.lock();
         int prevTableSize = TABLE_SIZE;
         if (TABLE_SIZE == MAX_CAPACITY) {
             tableLock.unlock();
-            throw new HashmapOversizeException("Size of hashmap is exceeded");
+            throw new HashmapOversizeException("Размер hashmap превышен");
         }
         TABLE_SIZE <<= 1;
         if (TABLE_SIZE > MAX_CAPACITY) {
@@ -216,7 +212,7 @@ public class HopscotchHashmap<V> implements HashMapOA<V> {
         tableLock.unlock();
     }
 
-    HashEntry<V> initBucket(int index){
+    HashEntry<V> initBucket(int index) {
         HashEntry<V> bucket = table[index];
         if (bucket == null) {
             table[index] = new HashEntry();
@@ -227,7 +223,6 @@ public class HopscotchHashmap<V> implements HashMapOA<V> {
 
     @Override
     public V put(int key, V value) {
-        //todo for test use only movge to signature in prod
         try {
             if (!tableLock.isHeldByCurrentThread()) {
                 tableLock.lock();
@@ -312,11 +307,15 @@ public class HopscotchHashmap<V> implements HashMapOA<V> {
         return put(key, value);
     }
 
+    /**
+     * Метод перемещающий пустой слот ближе к оригинальному букету
+     * @param bi информация о расстоянии до пустого слота и его индекс
+     * @return
+     */
     BucketInfo find_closer_bucket(BucketInfo bi) {
         int free_bucket_index = bi.getFreeBucketIndex();
         HashEntry<V> free_bucket = initBucket(ali(free_bucket_index));
         int free_distance = bi.getFreeDistance();
-        //0 - free distance, 1 - val, 2 - new free bucket
         BucketInfo result = new BucketInfo(0, 0);
         int move_bucket_index = free_bucket_index - (NEIGHBOURHOOD_SIZE - 1);
         HashEntry<V> move_bucket = table[ali(move_bucket_index)];
@@ -362,7 +361,7 @@ public class HopscotchHashmap<V> implements HashMapOA<V> {
 
     @Override
     public V remove(int key) {
-        //todo check that not resize
+        //check that not resize
         tableLock.lock();
         tableLock.unlock();
         int bucket_index = h(key);
@@ -398,6 +397,13 @@ public class HopscotchHashmap<V> implements HashMapOA<V> {
         return (bucket != null);
     }
 
+    /**
+     * Функция поиска пустого элемента в окружении букета
+     * @param bucket - первоначальный букет
+     * @param init_bucket_index - индекс первоначального букета
+     * @param key - ключ
+     * @return Найденный пустой элемент или null и индекс
+     */
     private FindElemRes findElem(HashEntry bucket, int init_bucket_index, int key) {
         long bitmap = bucket.getNeiRecBmp();
         long mask = 1;
