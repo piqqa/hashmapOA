@@ -108,7 +108,7 @@ public class HashMapTest {
         for (int i = 0; i < 64; i++) {
             map.put(i, i);
         }
-        map.put(128, Integer.toString(128));
+        map.put(128, 128);
         for (int i = 0; i < 64; i++) {
             assertEquals(i, map.get(i));
         }
@@ -142,7 +142,7 @@ public class HashMapTest {
             map.put(128*j, 128*j);
         }
         for (int j = 0; j <18 ; j++) {
-            System.out.println(map.get(128*j) + " is " + 128*j);
+            assertEquals(128*j, map.get(128*j));
         }}
 
     // Make sure that size decrements as elements are used
