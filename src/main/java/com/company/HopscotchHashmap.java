@@ -216,9 +216,14 @@ public class HopscotchHashmap<V> implements HashMapOA<V> {
         tableLock.unlock();
     }
 
-//    HashEntry<V> initBucket(int index){
-//
-//    }
+    HashEntry<V> initBucket(int index){
+        HashEntry<V> bucket = table[index];
+        if (bucket == null) {
+            table[index] = new HashEntry();
+            bucket = table[index];
+        }
+        return bucket;
+    }
 
     @Override
     public V put(int key, V value) {
@@ -232,11 +237,7 @@ public class HopscotchHashmap<V> implements HashMapOA<V> {
                 throw new IllegalArgumentException("Key cant be " + DELETED + " and value cant be NULL");
             }
             int bucket_index = h(key);
-            HashEntry bucket = table[bucket_index];
-            if (bucket == null) {
-                table[bucket_index] = new HashEntry();
-                bucket = table[bucket_index];
-            }
+            HashEntry bucket = initBucket(bucket_index);
             bucket.getLock().lock();
             int i;
             long bitmap = bucket.getNeiRecBmp();
@@ -292,7 +293,7 @@ public class HopscotchHashmap<V> implements HashMapOA<V> {
                     if (free_distance < NEIGHBOURHOOD_SIZE) {
                         entry.setKey(key);
                         entry.setValue(value);
-                        bucket.setBitmapBit(i);
+                        bucket.setBitmapBit(free_distance);
                         ++ACTUAL_SIZE;
                         bucket.getLock().unlock();
                         if (ACTUAL_SIZE * 1.0 / TABLE_SIZE > MAX_LOAD_FACTOR)
@@ -312,12 +313,7 @@ public class HopscotchHashmap<V> implements HashMapOA<V> {
 
     BucketInfo find_closer_bucket(BucketInfo bi) {
         int free_bucket_index = bi.getFreeBucketIndex();
-        HashEntry<V> free_bucket = table[ali(free_bucket_index)];
-        //todo extract init empty to func
-        if (free_bucket == null) {
-            table[ali(free_bucket_index)] = new HashEntry();
-            free_bucket = table[ali(free_bucket_index)];
-        }
+        HashEntry<V> free_bucket = initBucket(ali(free_bucket_index));
         int free_distance = bi.getFreeDistance();
         //0 - free distance, 1 - val, 2 - new free bucket
         BucketInfo result = new BucketInfo(0, 0);
@@ -339,11 +335,7 @@ public class HopscotchHashmap<V> implements HashMapOA<V> {
                 move_bucket.getLock().lock();
                 if (start_hop_info == move_bucket.getNeiRecBmp()) {
                     int new_free_bucket_index = move_bucket_index + move_free_distance;
-                    HashEntry<V> new_free_bucket = table[ali(new_free_bucket_index)];
-                    if (new_free_bucket == null) {
-                        table[ali(new_free_bucket_index)] = new HashEntry();
-                        new_free_bucket = table[ali(new_free_bucket_index)];
-                    }
+                    HashEntry<V> new_free_bucket = initBucket(ali(new_free_bucket_index));
                     /*Updates move_bucket's hop_info, to indicate the newly inserted bucket*/
                     move_bucket.setBitmapBit(free_dist);
                     free_bucket.setValue(new_free_bucket.getValue());
