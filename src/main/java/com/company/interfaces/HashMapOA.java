@@ -1,4 +1,4 @@
-package interfaces;
+package com.company.interfaces;
 
 public interface HashMapOA<V> {
     V remove(int key);
