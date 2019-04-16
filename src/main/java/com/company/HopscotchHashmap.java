@@ -303,6 +303,7 @@ public class HopscotchHashmap<V> implements HashMapOA<V> {
                     found_closest_bucket = find_closer_bucket(new BucketInfo(free_bucket_index, free_distance));
                 }
             }
+            bucket.getLock().unlock();
             resize();
         } catch (HashmapOversizeException he) {
             System.out.println(he);

@@ -5,10 +5,6 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-
 import static junit.framework.TestCase.*;
 
 public class HashMapTest {
@@ -191,19 +187,11 @@ public class HashMapTest {
         assertFalse(map.containsKey(133));
     }
 
-    // Check that contains is not fooled by equivalent hash codes
-    @Test
-    public void testInfiniteLoop() {
-        Executor e = Executors.newFixedThreadPool(5);
-        for (int i = 0; i < 5000; i++) {
-            ((ExecutorService) e).submit(() -> {
-                int data = (int) Math.random()*100000;
-                map.put(data, String.valueOf(data));
-            });
-        }
-        //we won if got here
+    @Test(expected = IllegalArgumentException.class)
+    public void testToHexStringWrong() {
+        map = new HopscotchHashmap<Integer>();
+        map.put(Integer.MIN_VALUE + 1, null);
     }
-
     /*
     @Test(expected = ArithmeticException.class)
     public void divisionWithException() {
