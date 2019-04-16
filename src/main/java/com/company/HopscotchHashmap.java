@@ -152,8 +152,8 @@ public class HopscotchHashmap<V> implements HashMapOA<V> {
     }
 
     public HopscotchHashmap(int set_capacity) {
-        if (set_capacity < 16) {
-            TABLE_SIZE = 16;
+        if (set_capacity < NEIGHBOURHOOD_SIZE) {
+            TABLE_SIZE = NEIGHBOURHOOD_SIZE;
         } else if (set_capacity > MAX_CAPACITY) {
             TABLE_SIZE = MAX_CAPACITY;
         } else {
