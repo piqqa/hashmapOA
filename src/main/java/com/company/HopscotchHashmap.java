@@ -157,12 +157,25 @@ public class HopscotchHashmap<V> implements HashMapOA<V> {
         } else if (set_capacity > MAX_CAPACITY) {
             TABLE_SIZE = MAX_CAPACITY;
         } else {
-            TABLE_SIZE = set_capacity;
+            TABLE_SIZE = ceilBit(set_capacity);
         }
         table = new HopscotchHashmap.HashEntry[TABLE_SIZE];
         //todo refactor memcopy ? stream
         for (int i = 0; i < TABLE_SIZE; i++)
             table[i] = null;
+    }
+
+    /**
+     * Приведём к степени числа 2
+     * @param size
+     * @return
+     */
+    private int ceilBit(int size){
+         int mask = NEIGHBOURHOOD_SIZE;
+         while (mask < size){
+             mask <<= 1;
+         }
+         return mask;
     }
 
     @Override
