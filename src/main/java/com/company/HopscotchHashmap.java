@@ -167,15 +167,16 @@ public class HopscotchHashmap<V> implements HashMapOA<V> {
 
     /**
      * Приведём к степени числа 2
+     *
      * @param size
      * @return
      */
-    private int ceilBit(int size){
-         int mask = NEIGHBOURHOOD_SIZE;
-         while (mask < size){
-             mask <<= 1;
-         }
-         return mask;
+    private int ceilBit(int size) {
+        int mask = NEIGHBOURHOOD_SIZE;
+        while (mask < size) {
+            mask <<= 1;
+        }
+        return mask;
     }
 
     @Override
@@ -200,29 +201,33 @@ public class HopscotchHashmap<V> implements HashMapOA<V> {
 
     /**
      * Функция перестройки внутреннего массива
+     *
      * @throws HashmapOversizeException
      */
     private void resize() throws HashmapOversizeException {
         tableLock.lock();
-        int prevTableSize = TABLE_SIZE;
-        if (TABLE_SIZE == MAX_CAPACITY) {
-            tableLock.unlock();
-            throw new HashmapOversizeException("Размер hashmap превышен");
-        }
-        TABLE_SIZE <<= 1;
-        if (TABLE_SIZE > MAX_CAPACITY) {
-            TABLE_SIZE = MAX_CAPACITY;
-        }
-        HashEntry[] oldTable = table;
-        table = new HashEntry[TABLE_SIZE];
-        ACTUAL_SIZE = 0;
-        for (int i = 0; i < prevTableSize; i++) {
-            HashEntry<V> entry = oldTable[i];
-            if (entry != null && !HashEntry.isDeleted(entry)) {
-                put(entry.getKey(), entry.getValue());
+        try {
+            int prevTableSize = TABLE_SIZE;
+
+            if (TABLE_SIZE == MAX_CAPACITY) {
+                throw new HashmapOversizeException("Размер hashmap превышен");
             }
+            TABLE_SIZE <<= 1;
+            if (TABLE_SIZE > MAX_CAPACITY) {
+                TABLE_SIZE = MAX_CAPACITY;
+            }
+            HashEntry[] oldTable = table;
+            table = new HashEntry[TABLE_SIZE];
+            ACTUAL_SIZE = 0;
+            for (int i = 0; i < prevTableSize; i++) {
+                HashEntry<V> entry = oldTable[i];
+                if (entry != null && !HashEntry.isDeleted(entry)) {
+                    put(entry.getKey(), entry.getValue());
+                }
+            }
+        } finally {
+            tableLock.unlock();
         }
-        tableLock.unlock();
     }
 
     HashEntry<V> initBucket(int index) {
@@ -322,6 +327,7 @@ public class HopscotchHashmap<V> implements HashMapOA<V> {
 
     /**
      * Метод перемещающий пустой слот ближе к оригинальному букету
+     *
      * @param bi информация о расстоянии до пустого слота и его индекс
      * @return
      */
@@ -412,9 +418,10 @@ public class HopscotchHashmap<V> implements HashMapOA<V> {
 
     /**
      * Функция поиска пустого элемента в окружении букета
-     * @param bucket - первоначальный букет
+     *
+     * @param bucket            - первоначальный букет
      * @param init_bucket_index - индекс первоначального букета
-     * @param key - ключ
+     * @param key               - ключ
      * @return Найденный пустой элемент или null и индекс
      */
     private FindElemRes findElem(HashEntry bucket, int init_bucket_index, int key) {
